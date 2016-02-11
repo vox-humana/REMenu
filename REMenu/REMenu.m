@@ -392,7 +392,7 @@
 
 - (CGFloat)combinedHeight
 {
-    return self.items.count * self.itemHeight + self.items.count * self.separatorHeight + 40.0 + self.cornerRadius;
+    return self.items.count * self.itemHeight + self.items.count * self.separatorHeight + self.cornerRadius;
 }
 
 - (void)setNeedsLayout
