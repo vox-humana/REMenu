@@ -28,6 +28,8 @@
 @interface REMenuContainerView : UIView
 
 @property (strong, readwrite, nonatomic) UINavigationBar *navigationBar;
+@property (strong, readwrite, nonatomic) UIScrollView *menuView;
+@property (strong, readwrite, nonatomic) UIView *menuWrapperView;
 @property (assign, readwrite, nonatomic) BOOL appearsBehindNavigationBar;
 
 @end

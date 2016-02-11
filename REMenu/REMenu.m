@@ -24,7 +24,6 @@
 //
 
 #import "REMenu.h"
-#import "REMenuItem.h"
 #import "REMenuItemView.h"
 
 @interface REMenuItem ()
@@ -35,7 +34,8 @@
 
 @interface REMenu ()
 
-@property (strong, readwrite, nonatomic) UIView *menuView;
+@property (strong, readwrite, nonatomic) UIScrollView *menuView;
+@property (strong, readwrite, nonatomic) UIView *menuItemsView;
 @property (strong, readwrite, nonatomic) UIView *menuWrapperView;
 @property (strong, readwrite, nonatomic) REMenuContainerView *containerView;
 @property (strong, readwrite, nonatomic) UIButton *backgroundButton;
@@ -122,7 +122,7 @@
     self.containerView = ({
         REMenuContainerView *view = [[REMenuContainerView alloc] init];
         view.clipsToBounds = YES;
-        view.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         
         if (self.backgroundView) {
             self.backgroundView.alpha = 0;
@@ -132,7 +132,7 @@
     });
     
     self.menuView = ({
-        UIView *view = [[UIView alloc] init];
+        UIScrollView *view = [[UIScrollView alloc] init];
         if (!self.liveBlur || !REUIKitIsFlatMode()) {
             view.backgroundColor = self.backgroundColor;
         }
@@ -142,7 +142,8 @@
         view.layer.masksToBounds = YES;
         view.layer.shouldRasterize = YES;
         view.layer.rasterizationScale = [UIScreen mainScreen].scale;
-        view.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        view.contentSize = CGSizeMake(0, self.combinedHeight);
         view;
     });
     
@@ -183,8 +184,8 @@
         [button addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
         button;
     });
-    
-    CGFloat navigationBarOffset = self.appearsBehindNavigationBar && self.navigationBar ? 64 : 0;
+
+    CGFloat navigationBarOffset = CGRectGetMaxY(self.navigationBar.frame);
     
     // Append new item views to REMenuView
     //
@@ -196,7 +197,7 @@
             itemHeight += self.cornerRadius;
         
         UIView *separatorView = [[UIView alloc] initWithFrame:CGRectMake(self.separatorOffset.width,
-                                                                         index * self.itemHeight + index * self.separatorHeight + 40.0 + navigationBarOffset + self.separatorOffset.height,
+                                                                         index * self.itemHeight + index * self.separatorHeight + self.separatorOffset.height,
                                                                          rect.size.width - self.separatorOffset.width,
                                                                          self.separatorHeight)];
         separatorView.backgroundColor = self.separatorColor;
@@ -204,7 +205,7 @@
         [self.menuView addSubview:separatorView];
         
         REMenuItemView *itemView = [[REMenuItemView alloc] initWithFrame:CGRectMake(0,
-                                                                                    index * self.itemHeight + (index + 1.0) * self.separatorHeight + 40.0 + navigationBarOffset,
+                                                                                    index * self.itemHeight + (index + 1.0) * self.separatorHeight,
                                                                                     rect.size.width,
                                                                                     itemHeight)
                                                                     menu:self item:item
@@ -222,8 +223,11 @@
     
     // Set up frames
     //
-    self.menuWrapperView.frame = CGRectMake(0, -self.combinedHeight - navigationBarOffset, rect.size.width, self.combinedHeight + navigationBarOffset);
+    CGFloat menuHeight = MIN(CGRectGetMaxY(rect) - navigationBarOffset, self.combinedHeight);
+    self.menuWrapperView.frame = CGRectMake(0, - menuHeight - navigationBarOffset, rect.size.width, menuHeight + navigationBarOffset);
     self.menuView.frame = self.menuWrapperView.bounds;
+    self.menuView.contentInset = UIEdgeInsetsMake(navigationBarOffset, 0, 0, 0);
+    self.menuView.contentOffset = CGPointMake(0, -navigationBarOffset);
     if (REUIKitIsFlatMode() && self.liveBlur) {
         self.toolbar.frame = self.menuWrapperView.bounds;
     }
@@ -238,6 +242,8 @@
     [self.menuWrapperView addSubview:self.menuView];
     [self.containerView addSubview:self.backgroundButton];
     [self.containerView addSubview:self.menuWrapperView];
+    self.containerView.menuWrapperView = self.menuWrapperView;
+    self.containerView.menuView = self.menuView;
     [view addSubview:self.containerView];
     
     if ([self.delegate respondsToSelector:@selector(willOpenMenu:)]) {
@@ -256,8 +262,8 @@
                                 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseInOut
                              animations:^{
                  self.backgroundView.alpha = self.backgroundAlpha;
-                 CGRect frame = self.menuView.frame;
-                 frame.origin.y = -40.0 - self.separatorHeight;
+                 CGRect frame = self.menuWrapperView.frame;
+                 frame.origin.y = 0;
                  self.menuWrapperView.frame = frame;
              } completion:^(BOOL finished) {
                  self.isAnimating = NO;
@@ -271,8 +277,8 @@
                                 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseInOut
                              animations:^{
                  self.backgroundView.alpha = self.backgroundAlpha;
-                 CGRect frame = self.menuView.frame;
-                 frame.origin.y = -40.0 - self.separatorHeight;
+                 CGRect frame = self.menuWrapperView.frame;
+                 frame.origin.y = 0;
                  self.menuWrapperView.frame = frame;
              } completion:^(BOOL finished) {
                  self.isAnimating = NO;
@@ -288,8 +294,8 @@
                             options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseInOut
                          animations:^{
             self.backgroundView.alpha = self.backgroundAlpha;
-            CGRect frame = self.menuView.frame;
-            frame.origin.y = -40.0 - self.separatorHeight;
+            CGRect frame = self.menuWrapperView.frame;
+            frame.origin.y = 0;
             self.menuWrapperView.frame = frame;
         } completion:^(BOOL finished) {
             self.isAnimating = NO;
@@ -325,16 +331,14 @@
     if (self.isAnimating) return;
     
     self.isAnimating = YES;
-    
-    CGFloat navigationBarOffset = self.appearsBehindNavigationBar && self.navigationBar ? 64 : 0;
-    
+
     void (^closeMenu)(void) = ^{
         [UIView animateWithDuration:self.closeAnimationDuration
                               delay:0.0
                             options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseInOut
                          animations:^ {
-            CGRect frame = self.menuView.frame;
-            frame.origin.y = - self.combinedHeight - navigationBarOffset;
+            CGRect frame = self.menuWrapperView.frame;
+            frame.origin.y = -frame.size.height;
             self.menuWrapperView.frame = frame;
             self.backgroundView.alpha = 0;
         } completion:^(BOOL finished) {
